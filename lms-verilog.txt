@@ -1,0 +1,223 @@
+module DelayUnit(Clk,Reset,Enable,Data_in,Delay_out);
+    input   Clk,Reset,Enable;
+    input   [15:0] Data_in;
+    output  [15:0] Delay_out;
+ 
+    reg[15:0] Delay_out;
+ 
+    always @(posedge Clk or posedge Reset) begin
+        if (Reset ==1'b1) begin
+            Delay_out <= 0;
+        end
+        else begin
+            if (Enable == 1'b1) begin
+                Delay_out <= Data_in;
+            end
+        end
+    end
+ 
+endmodule
+
+
+
+module LMS_tap(Clk,Reset,Enable,Data_in,Step_size,Delay_out,Tap_out);
+    input   Clk,Reset,Enable;
+    input   signed [15:0] Data_in,Step_size;
+    output  signed [15:0] Delay_out;
+    output  signed [31:0] Tap_out;
+ 
+    wire signed [15:0] Weight_in,Weight_out,Product_16;
+    wire signed [31:0] Product_32;
+ 
+    DelayUnit Delay_reg (.Clk(Clk),
+                        .Reset(Reset),
+                        .Enable(Enable),
+                        .Data_in(Data_in),
+                        .Delay_out(Delay_out)
+                        );
+ 
+    assign Product_32 = Data_in * Step_size;
+    assign Product_16 = Product_32[26:11];
+    assign Weight_in = (Reset == 1'b1) ? 16'h0000 : (Product_16 + Weight_out);
+ 
+    DelayUnit Data_reg  (.Clk(Clk),
+                        .Reset(Reset),
+                        .Enable(Enable),
+                        .Data_in(Weight_in),
+                        .Delay_out(Weight_out)
+                        ); 
+ 
+    assign Tap_out = Weight_out * Data_in;
+ 
+endmodule
+
+
+
+module LMSx8(Clk,Reset,Enable,Data_in,Step_size,Sum_in,Sum_out);
+    input   Clk,Reset,Enable;
+    input   signed [15:0] Data_in,Step_size;
+    input   signed [31:0] Sum_in;
+    output  signed [31:0] Sum_out;
+ 
+    wire signed [15:0] LMS_tap_1_delay_out,LMS_tap_2_delay_out,LMS_tap_3_delay_out,
+                       LMS_tap_4_delay_out,LMS_tap_5_delay_out,LMS_tap_6_delay_out,LMS_tap_7_delay_out;
+    wire signed [31:0] LMS_tap_1_out,LMS_tap_2_out,LMS_tap_3_out,LMS_tap_4_out,
+                       LMS_tap_5_out,LMS_tap_6_out,LMS_tap_7_out,LMS_tap_8_out;
+ 
+    LMS_tap     LMS_tap_1   (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(Data_in),
+                            .Step_size(Step_size),
+                            .Delay_out(LMS_tap_1_delay_out),
+                            .Tap_out(LMS_tap_1_out)
+                            );
+ 
+    LMS_tap     LMS_tap_2   (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(LMS_tap_1_delay_out),
+                            .Step_size(Step_size),
+                            .Delay_out(LMS_tap_2_delay_out),
+                            .Tap_out(LMS_tap_2_out)
+                            );
+    LMS_tap     LMS_tap_3   (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(LMS_tap_2_delay_out),
+                            .Step_size(Step_size),
+                            .Delay_out(LMS_tap_3_delay_out),
+                            .Tap_out(LMS_tap_3_out)
+                            );
+    LMS_tap     LMS_tap_4   (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(LMS_tap_3_delay_out),
+                            .Step_size(Step_size),
+                            .Delay_out(LMS_tap_4_delay_out),
+                            .Tap_out(LMS_tap_4_out)
+                            );
+    LMS_tap     LMS_tap_5   (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(LMS_tap_4_delay_out),
+                            .Step_size(Step_size),
+                            .Delay_out(LMS_tap_5_delay_out),
+                            .Tap_out(LMS_tap_5_out)
+                            );
+    LMS_tap     LMS_tap_6   (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(LMS_tap_5_delay_out),
+                            .Step_size(Step_size),
+                            .Delay_out(LMS_tap_6_delay_out),
+                            .Tap_out(LMS_tap_6_out)
+                            );
+    LMS_tap     LMS_tap_7   (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(LMS_tap_6_delay_out),
+                            .Step_size(Step_size),
+                            .Delay_out(LMS_tap_7_delay_out),
+                            .Tap_out(LMS_tap_7_out)
+                            );
+    LMS_tap     LMS_tap_8   (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(LMS_tap_7_delay_out),
+                            .Step_size(Step_size),
+                            .Tap_out(LMS_tap_8_out)
+                            );
+ 
+    assign Sum_out = Sum_in + LMS_tap_1_out + LMS_tap_2_out +
+                     LMS_tap_3_out + LMS_tap_4_out + LMS_tap_5_out +
+                     LMS_tap_6_out + LMS_tap_7_out + LMS_tap_8_out;
+ 
+endmodule
+
+
+module lms(Clk,Reset,Enable,Data_in,Desired_in,Step_size,Error_out);
+    input   Clk,Reset,Enable;
+    input   signed [15:0] Data_in,Desired_in,Step_size;
+    output  signed [15:0] Error_out;
+ 
+    wire signed [15:0] Error_in,Data_in_reg,Desired_in_reg,Product_16;
+    wire signed [31:0] Product_32,LMSx8_sum_out;
+ 
+    DelayUnit   Data_reg_1  (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(Data_in),
+                            .Delay_out(Data_in_reg)
+                            );
+                             
+    DelayUnit   Data_reg_2  (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(Desired_in),
+c                            .Delay_out(Desired_in_reg)
+                            );
+ 
+    assign Product_32 = Step_size * Error_in;
+    assign Product_16 = Product_32[26:11];
+ 
+    LMSx8   LMSx8   (.Clk(Clk),
+                    .Reset(Reset),
+                    .Enable(Enable),
+                    .Data_in(Data_in_reg),
+                    .Step_size(Product_16),
+                    .Sum_in(32'h0000_0000),
+                    .Sum_out(LMSx8_sum_out)
+                    );
+ 
+    assign Error_in = Desired_in_reg - LMSx8_sum_out[26:11];
+ 
+    DelayUnit   Data_reg_3  (.Clk(Clk),
+                            .Reset(Reset),
+                            .Enable(Enable),
+                            .Data_in(Error_in),
+                            .Delay_out(Error_out)
+                            );
+ 
+endmodule
+
+
+module lms_tp();
+    reg  Clk,Enable,Reset;
+    reg  [15:0] Data_in,Desired_in,Step_size;
+    reg  [15:0] noise[0:999],data[0:999];
+    wire [15:0] Error_out;
+    integer i;
+    parameter CYCLE = 10;
+ 
+    lms TestUnit   (.Clk(Clk),
+                    .Data_in(Data_in),
+                    .Desired_in(Desired_in),
+                    .Enable(Enable),
+                    .Reset(Reset),
+                    .Step_size(Step_size),
+                    .Error_out(Error_out)
+                    );
+ 
+    always #(CYCLE/2) Clk = ~Clk;
+ 
+    initial begin
+        Clk = 1'b0;
+        Reset = 1'b0;
+        Enable = 1'b1;
+        #(CYCLE) Reset = 1'b1;
+        #(CYCLE) Reset = 1'b0;
+    end
+ 
+    initial begin
+        Step_size = 16'h0010; //Q5.11 so u=0.0078
+        $readmemh("desired.txt",data);
+        $readmemh("noiseg.txt",noise);
+ 
+        for(i=0;i<1000;i=i+1) begin
+            #(CYCLE) Data_in = noise[i];
+                  Desired_in = data[i];
+        end
+    end
+ 
+endmodule
