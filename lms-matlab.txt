@@ -1,0 +1,47 @@
+M = 32; 
+mu = 0.1; 
+iteration_max = 300000; 
+w = (randn(1,M)-randn(1,M))/100;
+d = zeros(1,M);
+u = zeros(1,M);
+n0 = wgn(322849,1,0); 
+filename = 'new1.txt';
+sn = importdata(filename);
+ 
+error=zeros(1,iteration_max);
+y=zeros(1,iteration_max);
+ 
+for t = 1:M-1
+ d(t) = sn(t);
+ u(t) = n0(t);
+end
+t = M;
+iteration = 0;
+while iteration < iteration_max
+ for  i= 2:M
+ d(M-i+2) = d(M-i+1);
+ u(M-i+2) = u(M-i+1);
+ end
+ d(1) = sn(iteration+M);
+  u(1) = n0(iteration+M);
+  output = dot(w,u);
+  e = d(1) - output;
+  y(iteration+1)=output;
+  error(iteration+1)=e;
+ for n = 1:M
+ w(n) = w(n)+mu*u(n)*e;
+ end
+  t = t+1;
+ iteration = iteration +1;
+ subplot(511), plot(t,d(1)), axis auto, title('Desired Signal (Signal + Noise)'),
+drawnow, hold on
+ subplot(512), plot(t,e), axis auto, title('Filtered Signal'), drawnow,
+hold on
+subplot(513), plot(t,u(1)), axis auto, title('Noise'), drawnow,
+hold on
+ 
+end 
+n=0:length(error)-1;
+subplot(514), plot(n,abs(fft(error))), axis auto, title('fft')
+%subplot(514), plot(n,abs(fftshift(y,2))), axis([0 iteration_max -2.5 2.5]), title('fft')
+
